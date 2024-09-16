@@ -1,0 +1,265 @@
+//CartDrawer.vue----------------------------------------------------------------------------------------------------------------------------------------
+
+<template>
+  <v-navigation-drawer
+    :modelValue="isOpen"
+    @update:modelValue="$emit('update:isOpen', $event)"
+    temporary
+    :width="$vuetify.display.mdAndUp ? 400 : '100%'"
+    :location="$vuetify.display.mdAndUp ? 'right' : 'bottom'"
+    :height="$vuetify.display.mdAndUp ? '100%' : '80%'"
+    :style="mobileStyle"
+    class="cart-drawer"
+  >
+    <v-card class="d-flex flex-column h-100">
+      <v-card-title class="text-h5 pa-4">
+        My Bag
+        <v-btn icon @click="closeDrawer" class="float-right" color="primary">
+          <v-icon>mdi-close</v-icon>
+        </v-btn>
+      </v-card-title>
+
+      <v-card-text class="flex-grow-1 overflow-y-auto">
+        <v-list>
+          <v-list-item v-for="item in cartItems" :key="item.id" class="mb-4">
+            <template v-slot:prepend>
+              <v-img :src="item.image" height="80px" width="80px" cover class="rounded mr-4"></v-img>
+            </template>
+           
+            <v-list-item-subtitle class="font-weight-bold">${{ item.price }}</v-list-item-subtitle>
+
+            <template v-slot:append>
+              <v-row align="center" no-gutters>
+              
+                <v-icon icon @click="decreaseQuantity(item)" class="mr-2" size="small">mdi-minus</v-icon>
+              
+                <span class="quantity-box">{{ item.quantity }}</span>
+                
+                <v-icon icon @click="increaseQuantity(item)" class="mx-2" size="small">mdi-plus</v-icon>
+            
+                <v-icon icon @click="removeFromCart(item.id)" class="ml-2" color="error" size="small">mdi-delete</v-icon>
+                
+              </v-row>
+            </template>
+          </v-list-item>
+        </v-list>
+      </v-card-text>
+
+      <v-card-actions>
+        <v-row>
+          <v-col cols="12" >
+            <v-btn to="/cart" color="primary" variant="elevated" block @click="$emit('update:isOpen', false)">
+              View Bag
+            </v-btn>
+          </v-col>
+          <v-col cols="12">
+            <v-btn color="teal" variant="elevated" block @click="checkout">
+              Go To Checkout
+            </v-btn>
+          </v-col>
+        </v-row>
+      </v-card-actions>
+    </v-card>
+  </v-navigation-drawer>
+</template>
+
+<script setup>
+import { computed, watch, onMounted, onUnmounted } from 'vue';
+import { useCartStore } from '@/store/cartStore';
+import { useDisplay } from 'vuetify';
+
+const props = defineProps({
+  isOpen: Boolean,
+});
+
+const emit = defineEmits(['update:isOpen']);
+
+const cartStore = useCartStore();
+const display = useDisplay();
+
+const cartItems = computed(() => cartStore.items);
+
+const mobileStyle = computed(() => {
+  if (!display.mdAndUp.value) {
+    return {
+      height: '80vh',
+      top: 'auto',
+      bottom: '0',
+    };
+  }
+  return {};
+});
+
+const updateBodyScroll = (isOpen) => {
+  if (isOpen) {
+    document.body.style.overflow = 'hidden';
+    document.body.style.height = '100%';
+    document.body.style.position = 'fixed';
+    document.body.style.width = '100%';
+  } else {
+    document.body.style.overflow = '';
+    document.body.style.height = '';
+    document.body.style.position = '';
+    document.body.style.width = '';
+  }
+};
+
+watch(() => props.isOpen, (newValue) => {
+  updateBodyScroll(newValue);
+});
+
+const closeDrawer = () => {
+  emit('update:isOpen', false);
+};
+
+onMounted(() => {
+  if (props.isOpen) {
+    updateBodyScroll(true);
+  }
+});
+
+onUnmounted(() => {
+  updateBodyScroll(false);
+});
+
+const removeFromCart = (id) => {
+  cartStore.removeFromCart(id);
+};
+
+const increaseQuantity = (item) => {
+  cartStore.updateQuantity(item.id, item.quantity + 1);
+};
+
+const decreaseQuantity = (item) => {
+  if (item.quantity > 1) {
+    cartStore.updateQuantity(item.id, item.quantity - 1);
+  }
+};
+
+</script>
+
+<style scoped>
+.cart-drawer {
+  z-index: 9999 !important;
+  
+
+}
+
+.v-navigation-drawer__content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+</style>
+
+//App.vue----------------------------------------------------------------------------------------------------------------------------------------
+
+<template>
+  <v-app>
+    <Header v-if="!isSignupPage && !isLoginPage" @toggle-cart-drawer="toggleCartDrawer" />
+    <v-main>
+      <router-view />
+    </v-main>
+    <Footer v-if="!isSignupPage && !isLoginPage" />
+    <CartDrawer :isOpen="isCartDrawerOpen" @update:isOpen="updateCartDrawerState" />
+    <div v-if="isCartDrawerOpen" class="overlay" @click="closeCartDrawer"></div>
+  </v-app>
+</template>
+
+<script setup>
+import { ref, computed } from 'vue';
+import { useRoute } from 'vue-router';
+import Header from '@/components/Header.vue';
+import Footer from '@/components/Footer.vue';
+import CartDrawer from '@/components/CartDrawer.vue';
+
+const route = useRoute();
+const isCartDrawerOpen = ref(false);
+
+const isSignupPage = computed(() => route.path === '/signup');
+const isLoginPage = computed(() => route.path === '/login');
+
+const toggleCartDrawer = () => {
+  isCartDrawerOpen.value = !isCartDrawerOpen.value;
+};
+
+const updateCartDrawerState = (newState) => {
+  isCartDrawerOpen.value = newState;
+};
+
+const closeCartDrawer = () => {
+  isCartDrawerOpen.value = false;
+};
+</script>
+
+<style>
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+}
+</style>
+
+//Header.vue--------------------------------------------------------------------------------------------------------------------------------------------------
+
+<template>
+  <v-app-bar class="py-2" :elevation="2" app>
+    <v-avatar size="90">
+      <router-link to="/">
+        <v-img src="src\assests\logo.png" height="63px" width="100px" class="ml-3"></v-img>
+      </router-link>
+    </v-avatar>
+
+    <v-toolbar-title class="text-center mr-3" style="max-width: 100px;">E-Shop</v-toolbar-title>
+
+    <SearchBar @search="handleSearch" class="mr-12" style="max-width: 800px; max-height: 50px;" />
+
+    <v-btn to="/" text size="large">Home</v-btn>
+    <v-btn to="/shop" text size="large">Shop</v-btn>
+    <v-btn icon to="/wishlist" text size="large">
+      <v-badge :content="wishlistCount" :value="wishlistCount" color="red" overlap>
+        <v-icon size="x-large">mdi-heart-outline</v-icon>
+      </v-badge>
+    </v-btn>
+
+    <v-btn icon @click="toggleCartDrawer" size="large" class="mr-3">
+      <v-badge :content="totalItems" color="red">
+        <v-icon icon="mdi-shopping-outline" size="x-large"></v-icon>
+      </v-badge>
+    </v-btn>
+  </v-app-bar>
+
+  <CartDrawer :isOpen="isCartDrawerOpen" @update:isOpen="isCartDrawerOpen = $event" />
+</template>
+
+<script setup>
+import { useCartStore } from '@/store/cartStore';
+import { useSearchStore } from '@/store/searchStore';
+import { computed, ref } from 'vue';
+import SearchBar from '@/components/SearchBar.vue';
+import { useWishlistStore } from '@/store/wishlistStore';
+import CartDrawer from '@/components/CartDrawer.vue';
+
+const cartStore = useCartStore();
+const searchStore = useSearchStore();
+
+const totalItems = computed(() => cartStore.totalItems);
+
+const wishlistStore = useWishlistStore();
+const wishlistCount = computed(() => wishlistStore.getWishlistItemCount);
+
+const handleSearch = (query) => {
+  searchStore.setQuery(query);
+};
+
+const isCartDrawerOpen = ref(false);
+
+const toggleCartDrawer = () => {
+  isCartDrawerOpen.value = !isCartDrawerOpen.value;
+};
+</script>
