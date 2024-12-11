@@ -1,0 +1,183 @@
+Based on the project structure you've described, I'll provide guidance on integrating the previous implementation and suggest some modifications to your existing files.
+
+1. **Shopify Client Setup**:
+Create a new file `src/services/shopifyClient.ts`:
+```typescript
+import Client from 'shopify-buy'
+
+export const client = Client.buildClient({
+  domain: import.meta.env.VITE_SHOPIFY_STORE_DOMAIN,
+  storefrontAccessToken: import.meta.env.VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN
+})
+```
+
+2. **Update Cart Store (`src/store/cartStore.js`)**: 
+Replace the existing content with the cart store logic from the previous implementation, adapting it slightly for your Vue setup:
+
+```typescript
+import { ref } from 'vue'
+import { client } from '@/services/shopifyClient'
+
+export const useCartStore = () => {
+  const cart = ref(null)
+  const cartId = ref(null)
+  const cartLoading = ref(false)
+  const cartError = ref(null)
+
+  // [Include all the methods from the previous implementation]
+  // Adapt to use Pinia or Vuex syntax if needed
+
+  return {
+    cart,
+    cartId,
+    cartLoading,
+    cartError,
+    createCart,
+    addToCart,
+    removeFromCart,
+    updateCartItemQuantity,
+    checkout
+  }
+}
+```
+
+3. **Modify Product Card (`src/components/ProductCard.vue`)**: 
+Add method to add product to cart:
+```vue
+<script setup>
+import { useCartStore } from '@/store/cartStore'
+
+const cartStore = useCartStore()
+
+const addToCart = async (variantId) => {
+  try {
+    await cartStore.addToCart(variantId)
+    // Optional: Show toast or notification
+  } catch (error) {
+    // Handle error
+    console.error('Failed to add to cart', error)
+  }
+}
+</script>
+
+<template>
+  <div>
+    <!-- Existing product card content -->
+    <v-btn @click="addToCart(product.variants[0].id)">
+      Add to Cart
+    </v-btn>
+  </div>
+</template>
+```
+
+4. **Update Cart Drawer (`src/components/CartDrawer.vue`)**: 
+```vue
+<template>
+  <v-navigation-drawer 
+    v-model="drawer" 
+    location="right"
+    temporary
+  >
+    <v-list v-if="cart && cart.lines.edges.length">
+      <v-list-item 
+        v-for="item in cart.lines.edges" 
+        :key="item.node.id"
+      >
+        <v-row>
+          <v-col cols="6">
+            {{ item.node.merchandise.product.title }}
+          </v-col>
+          <v-col cols="2">
+            <v-text-field
+              type="number"
+              :value="item.node.quantity"
+              @input="updateQuantity(item.node.id, $event)"
+              min="1"
+            ></v-text-field>
+          </v-col>
+          <v-col cols="2">
+            {{ item.node.merchandise.price.amount }} 
+            {{ item.node.merchandise.price.currencyCode }}
+          </v-col>
+          <v-col cols="2">
+            <v-btn 
+              color="error" 
+              @click="removeItem(item.node.id)"
+            >
+              Remove
+            </v-btn>
+          </v-col>
+        </v-row>
+      </v-list-item>
+    </v-list>
+
+    <v-btn 
+      v-if="cart && cart.lines.edges.length"
+      @click="proceedToCheckout"
+    >
+      Checkout
+    </v-btn>
+  </v-navigation-drawer>
+</template>
+
+<script setup>
+import { ref, onMounted, computed } from 'vue'
+import { useCartStore } from '@/store/cartStore'
+
+const cartStore = useCartStore()
+const { 
+  cart, 
+  cartLoading, 
+  createCart, 
+  removeFromCart, 
+  updateCartItemQuantity, 
+  checkout 
+} = cartStore
+
+const drawer = ref(false)
+
+onMounted(async () => {
+  await createCart()
+})
+
+const removeItem = async (lineId) => {
+  await removeFromCart(lineId)
+}
+
+const updateQuantity = async (lineId, event) => {
+  const quantity = parseInt(event.target.value)
+  await updateCartItemQuantity(lineId, quantity)
+}
+
+const proceedToCheckout = async () => {
+  await checkout()
+}
+</script>
+```
+
+5. **Environment Variables**:
+Create a `.env` file in your project root:
+```
+VITE_SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
+VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN=your_storefront_access_token
+```
+
+6. **Installation**:
+Install required packages:
+```bash
+npm install shopify-buy
+```
+
+Key Changes and Recommendations:
+1. The implementation is designed to work with your existing store structure
+2. Added Shopify client service
+3. Updated cart store with Storefront API methods
+4. Modified Product Card to add items to cart
+5. Created a Cart Drawer with cart management functionality
+
+Potential Additional Improvements:
+- Add error handling with user-friendly notifications
+- Implement loading states
+- Add more detailed cart and checkout logic as needed
+
+Do you want me to elaborate on any of these changes or help you integrate them into your specific project setup?
