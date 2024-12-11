@@ -1,0 +1,213 @@
+Based on the files you've provided, I'll help you integrate the Shopify Storefront API for cart and checkout functionality. I'll suggest modifications to your existing files and provide additional implementation details.
+
+1. **Update `cartStore.js`**:
+```javascript
+import { defineStore } from 'pinia';
+import { client } from '@/services/shopifyClient'
+
+export const useCartStore = defineStore('cart', {
+  state: () => ({
+    cart: null,
+    cartId: null,
+    cartLoading: false,
+    cartError: null,
+    items: JSON.parse(localStorage.getItem('cart') || '[]')
+  }),
+  getters: {
+    totalItems: (state) => state.items.reduce((acc, item) => acc + item.quantity, 0),
+    totalPrice: (state) => state.items.reduce((acc, item) => acc + item.price * item.quantity, 0),
+  },
+  actions: {
+    // Existing local cart methods
+    addToCart(product) {
+      const existingItem = this.items.find((item) => item.id === product.id);
+      if (existingItem) {
+        existingItem.quantity++;
+      } else {
+        this.items.push({ ...product, quantity: 1 });
+      }
+      this.saveCart();
+      
+      // Optional: Sync with Shopify cart
+      this.addToShopifyCart(product);
+    },
+    removeFromCart(id) {
+      this.items = this.items.filter((item) => item.id !== id);
+      this.saveCart();
+      
+      // Optional: Remove from Shopify cart
+      this.removeFromShopifyCart(id);
+    },
+    updateQuantity(id, quantity) {
+      const item = this.items.find((item) => item.id === id);
+      if (item) {
+        item.quantity = quantity;
+        if (item.quantity <= 0) {
+          this.removeFromCart(id);
+        }
+      }
+      this.saveCart();
+      
+      // Optional: Update Shopify cart quantity
+      this.updateShopifyCartQuantity(id, quantity);
+    },
+    saveCart() {
+      localStorage.setItem('cart', JSON.stringify(this.items));
+    },
+
+    // Shopify Storefront API Cart Methods
+    async initializeCart() {
+      this.cartLoading = true;
+      try {
+        const cartResponse = await client.checkout.create();
+        this.cartId = cartResponse.id;
+        this.cart = cartResponse;
+      } catch (error) {
+        this.cartError = error;
+        console.error('Error initializing cart:', error);
+      } finally {
+        this.cartLoading = false;
+      }
+    },
+    
+    async addToShopifyCart(product) {
+      if (!this.cart) await this.initializeCart();
+
+      try {
+        const variantId = product.variants[0]?.id; // Adjust based on your product structure
+        const cartLineItemsToAdd = [{
+          variantId: variantId,
+          quantity: 1
+        }];
+
+        const cart = await client.checkout.addLineItems(
+          this.cartId, 
+          cartLineItemsToAdd
+        );
+        this.cart = cart;
+      } catch (error) {
+        console.error('Error adding to Shopify cart:', error);
+      }
+    },
+
+    async removeFromShopifyCart(lineItemId) {
+      try {
+        const cart = await client.checkout.removeLineItems(
+          this.cartId, 
+          [lineItemId]
+        );
+        this.cart = cart;
+      } catch (error) {
+        console.error('Error removing from Shopify cart:', error);
+      }
+    },
+
+    async updateShopifyCartQuantity(lineItemId, quantity) {
+      try {
+        const cart = await client.checkout.updateLineItems(
+          this.cartId,
+          [{id: lineItemId, quantity}]
+        );
+        this.cart = cart;
+      } catch (error) {
+        console.error('Error updating cart quantity:', error);
+      }
+    },
+
+    async checkout() {
+      if (!this.cart) return;
+
+      try {
+        // Redirect to Shopify checkout
+        window.location.href = this.cart.webUrl;
+      } catch (error) {
+        console.error('Checkout error:', error);
+      }
+    }
+  }
+});
+```
+
+2. **Create Shopify Client Service (`src/services/shopifyClient.js`):**
+```javascript
+import Client from 'shopify-buy';
+
+export const client = Client.buildClient({
+  domain: 'your-store.myshopify.com',
+  storefrontAccessToken: 'your_storefront_access_token'
+});
+```
+
+3. **Update `ProductCard.vue`**:
+```vue
+<script setup>
+import { useCartStore } from '@/store/cartStore';
+import { defineProps } from 'vue';
+
+const props = defineProps({
+  product: {
+    type: Object,
+    required: true
+  }
+});
+
+const cartStore = useCartStore();
+
+const addToCart = () => {
+  // Ensure the product has a variant ID if needed
+  const productWithVariant = {
+    ...props.product,
+    variants: [{
+      id: props.product.id // Adjust based on your Shopify product structure
+    }]
+  };
+  cartStore.addToCart(productWithVariant);
+};
+</script>
+```
+
+4. **Update `CartDrawer.vue`**:
+```vue
+<script setup>
+// ... existing imports
+import { useCartStore } from '@/store/cartStore'
+
+const cartStore = useCartStore()
+
+// Update existing methods
+const checkout = () => {
+  cartStore.checkout()
+}
+</script>
+```
+
+5. **Installation**:
+```bash
+npm install shopify-buy
+```
+
+6. **Environment Variables**:
+Create a `.env` file:
+```
+VITE_SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
+VITE_SHOPIFY_STOREFRONT_ACCESS_TOKEN=your_storefront_access_token
+```
+
+Key Changes and Recommendations:
+- Added Shopify Storefront API integration to cart store
+- Maintained existing local cart functionality
+- Added methods to sync with Shopify cart
+- Implemented checkout redirection
+- Kept local storage as a fallback
+
+Potential Improvements:
+- Add more robust error handling
+- Implement loading states
+- Add user notifications for cart actions
+
+Important Notes:
+- Replace placeholder Shopify credentials with your actual store details
+- Adjust product structure mapping as needed
+- The implementation provides a hybrid approach of local cart and Shopify cart management
+
+Would you like me to elaborate on any part of the implementation or help you further customize the integration?
