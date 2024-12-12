@@ -1,3 +1,162 @@
+You're right. The error suggests there might be an issue with the GraphQL query or API configuration. Let me provide a more robust and simplified version that should help diagnose the problem:
+
+```javascript
+import { defineStore } from 'pinia';
+import axios from 'axios';
+
+export const useProductStore = defineStore('productStore', {
+  state: () => ({
+    products: [],
+    categories: [],
+    loading: false,
+    error: null
+  }),
+  getters: {
+    getProductById: (state) => (id) => state.products.find(product => product.id === id),
+    getProductsByCategory: (state) => (category) => 
+      category === 'All' ? state.products : state.products.filter(product => product.category === category),
+  },
+  actions: {
+    async fetchData() {
+      this.loading = true;
+      this.error = null;
+      
+      try {
+        // Hardcoded credentials for debugging (replace with env variables)
+        const SHOPIFY_API_URL = 'https://code-with-chiranjit.myshopify.com/api/2024-07/graphql.json';
+        const SHOPIFY_API_TOKEN = "ca6b137e6fa0f0f5b68b3eb3c01d6d4b";
+        
+        const shopifyClient = axios.create({
+          baseURL: SHOPIFY_API_URL,
+          headers: {
+            'X-Shopify-Storefront-Access-Token': SHOPIFY_API_TOKEN,
+            'Content-Type': 'application/json',
+          },
+        });
+
+        const query = `
+          query {
+            products(first: 10) {
+              edges {
+                node {
+                  id
+                  title
+                  description
+                  productType
+                  images(first: 1) {
+                    edges {
+                      node {
+                        url
+                        altText
+                      }
+                    }
+                  }
+                  variants(first: 1) {
+                    edges {
+                      node {
+                        id
+                        price
+                        compareAtPrice
+                        availableForSale
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        `;
+
+        console.log('Sending request to Shopify API');
+        const response = await shopifyClient.post('', { query });
+        
+        console.log('Full API Response:', JSON.stringify(response.data, null, 2));
+
+        // Check if products exist in the response
+        if (!response.data || !response.data.data || !response.data.data.products) {
+          throw new Error('No products found in the response');
+        }
+
+        const productsData = response.data.data.products.edges;
+
+        // Generate random helpers
+        function generateRandomFloat(min, max) {
+          return parseFloat((Math.random() * (max - min) + min).toFixed(1));
+        }
+
+        // Process products
+        this.products = productsData.map(edge => {
+          const product = edge.node;
+          const primaryVariant = product.variants.edges[0]?.node;
+
+          return {
+            id: product.id.split('/').pop(),
+            title: product.title,
+            description: product.description,
+            image: product.images.edges[0]?.node.url || 'default-image-url',
+            imageAlt: product.images.edges[0]?.node.altText,
+            
+            price: primaryVariant?.price || 0,
+            compareAtPrice: primaryVariant?.compareAtPrice,
+            variantId: primaryVariant?.id,
+            
+            category: product.productType || 'Uncategorized',
+            availableForSale: primaryVariant?.availableForSale,
+            
+            rating: generateRandomFloat(3, 5)
+          };
+        });
+
+        // Set categories
+        this.categories = ['All', ...new Set(this.products.map(p => p.category))];
+        
+        this.loading = false;
+        console.log('Products fetched successfully:', this.products);
+
+      } catch (error) {
+        console.error('Detailed Error:', {
+          message: error.message,
+          response: error.response ? error.response.data : 'No response',
+          config: error.config
+        });
+        
+        this.error = error.message;
+        this.loading = false;
+        throw error;
+      }
+    },
+  },
+});
+
+```
+
+Key Debugging Changes:
+1. Added extensive console logging
+2. Simplified GraphQL query
+3. Added more robust error checking
+4. Hardcoded credentials (for debugging)
+5. More detailed error logging
+
+Troubleshooting Steps:
+1. Verify Shopify Credentials
+   - Ensure your Storefront Access Token is correct
+   - Check that the API URL is accurate
+
+2. Verify API Permissions
+   - Go to Shopify Admin > Apps > Manage private apps
+   - Ensure Storefront API has read access to products
+
+3. Console Logging
+   - Check browser console for detailed error messages
+   - The added console logs will help identify exactly where the issue occurs
+
+Questions for you:
+1. When you run this, what specific error do you see in the console?
+2. Can you confirm your Shopify Storefront API credentials?
+3. Have you enabled Storefront API access in your Shopify admin?
+
+Would you like me to help you troubleshoot the specific error you're seeing?
+############
 I'll provide a comprehensive set of files for your Shopify-integrated Vue application. I'll break this down into multiple files to give you a complete picture.
 
 1. Shopify Product Store (productStore.js):
